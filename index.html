@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pink Sudoku Infinity 🌸</title>
+    <style>
+        :root {
+            --pink-dark: #ff85a2;
+            --pink-medium: #ffb3c6;
+            --pink-light: #ffe5ec;
+            --pink-bg: #fff0f3;
+            --white: #ffffff;
+            --text-color: #4a5568;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--pink-bg);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(255, 133, 162, 0.2);
+            text-align: center;
+            max-width: 450px;
+            width: 100%;
+        }
+
+        h1 { color: var(--pink-dark); margin-top: 0; font-size: 2rem; }
+
+        .btn {
+            background-color: var(--pink-dark);
+            color: var(--white);
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 10px rgba(255, 133, 162, 0.4);
+            margin-top: 10px;
+        }
+
+        .btn:hover { background-color: #ff6b8b; transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+
+        #game-screen { display: none; }
+        #level-title { color: var(--pink-dark); margin-bottom: 15px; }
+
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 1px;
+            background-color: var(--pink-medium);
+            border: 3px solid var(--pink-dark);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .cell {
+            width: 100%;
+            aspect-ratio: 1;
+            border: 1px solid var(--pink-light);
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-color);
+            box-sizing: border-box;
+            outline: none;
+            background-color: var(--white);
+        }
+
+        .cell:nth-child(3n) { border-right: 2px solid var(--pink-dark); }
+        .cell:nth-child(9n) { border-right: none; }
+        .sudoku-grid > div:nth-child(27n + 1):not(:first-child) {
+            box-shadow: 0 -2px 0 0 var(--pink-dark);
+        }
+
+        .cell:disabled {
+            background-color: var(--pink-light);
+            color: var(--pink-dark);
+            cursor: not-allowed;
+        }
+
+        .cell:focus {
+            background-color: #fff3f5;
+            border: 2px solid var(--pink-dark);
+        }
+
+        #next-level-btn { display: none; margin: 15px auto 0 auto; background-color: #4caf50; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.4); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="start-screen">
+        <h1>Pink Sudoku 🌸</h1>
+        <button class="btn" id="start-btn" onclick="startGame()">Start 1 Level</button>
+    </div>
+
+    <div id="game-screen">
+        <h2 id="level-title">Level 1</h2>
+        <div class="sudoku-grid" id="grid"></div>
+        
+        <button class="btn" onclick="checkBoard()">Check✨</button>
+        <button class="btn" id="next-level-btn" onclick="nextLevel()">Start Next Level</button>
+    </div>
+</div>
+
+<script>
+    let currentLevel = 1;
+    let currentBoard = []; // Тут будет храниться текущая сгенерированная сетка
+
+    function startGame() {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        generateNewSudoku();
+    }
+
+    // ==========================================================================
+    // АЛГОРИТМ БЕСКОНЕЧНОЙ ГЕНЕРАЦИИ СУДОКУ
+    // ==========================================================================
+
+    function generateNewSudoku() {
+        // Шаг 1. Создаем пустую сетку 9х9 заполненную нулями
+        let matrix = Array.from({ length: 9 }, () => Array(9).fill(0));
+        
+        // Шаг 2. Заполняем сетку правильными случайными числами
+        fillSudoku(matrix);
+
+        // Шаг 3. Увеличиваем сложность с каждым уровнем (стираем больше цифр)
+        // На 1 уровне оставим ~40 цифр открытыми, дальше — всё меньше (но не меньше 25)
+        let cellsToLeave = Math.max(25, 45 - currentLevel); 
+        let cellsToRemove = 81 - cellsToLeave;
+
+        while (cellsToRemove > 0) {
+            let row = Math.floor(Math.random() * 9);
+            let col = Math.floor(Math.random() * 9);
+            if (matrix[row][col] !== 0) {
+                matrix[row][col] = 0;
+                cellsToRemove--;
+            }
+        }
+
+        // Превращаем 2D матрицу обратно в одномерный массив для рендеринга
+        currentBoard = matrix.flat();
+        loadLevelVisuals();
+    }
+
+    // Вспомогательная функция проверки правил для генератора
+    function isSafe(grid, row, col, num) {
+        for (let x = 0; x < 9; x++) {
+            if (grid[row][x] === num || grid[x][col] === num) return false;
+        }
+        let startRow = row - row % 3, startCol = col - col % 3;
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                if (grid[i + startRow][j + startCol] === num) return false;
+            }
+        }
+        return true;
+    }
+
+    // Рекурсивный Backtracking для заполнения поля
+    function fillSudoku(grid) {
+        let row = -1;
+        let col = -1;
+        let isEmpty = true;
+        
+        for (let i = 0; i < 9; i++) {
+            for (let j = 0; j < 9; j++) {
+                if (grid[i][j] === 0) {
+                    row = i; col = j;
+                    isEmpty = false;
+                    break;
+                }
+            }
+            if (!isEmpty) break;
+        }
+
+        if (isEmpty) return true; // Вся сетка успешно заполнена
+
+        // Создаем случайный порядок цифр от 1 до 9, чтобы судоку всегда было разным
+        let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+
+        for (let num of numbers) {
+            if (isSafe(grid, row, col, num)) {
+                grid[row][col] = num;
+                if (fillSudoku(grid)) return true;
+                grid[row][col] = 0; // Откат назад, если зашли в тупик
+            }
+        }
+        return false;
+    }
+
+    // ==========================================================================
+    // ИНТЕРФЕЙС И ВАЛИДАЦИЯ ИГРОКА
+    // ==========================================================================
+
+    function loadLevelVisuals() {
+        document.getElementById('level-title').innerText = `Level ${currentLevel}`;
+        document.getElementById('next-level-btn').style.display = 'none';
+        
+        const gridContainer = document.getElementById('grid');
+        gridContainer.innerHTML = '';
+
+        currentBoard.forEach((val, index) => {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.inputMode = 'numeric';
+            input.className = 'cell';
+            input.dataset.index = index;
+
+            if (val !== 0) {
+                input.value = val;
+                input.disabled = true;
+            } else {
+                input.addEventListener('input', (e) => {
+                    let v = e.target.value.replace(/[^1-9]/g, '');
+                    e.target.value = v.substring(0, 1);
+                    checkBoard();
+                });
+                input.addEventListener('blur', checkBoard);
+            }
+            gridContainer.appendChild(input);
+        });
+    }
+
+    function checkBoard() {
+        const cells = document.querySelectorAll('.cell');
+        let board2D = [];
+
+        for (let i = 0; i < 9; i++) {
+            board2D.push([]);
+            for (let j = 0; j < 9; j++) {
+                const cellIndex = i * 9 + j;
+                const val = parseInt(cells[cellIndex].value, 10);
+                
+                if (isNaN(val) || val === 0) {
+                    document.getElementById('next-level-btn').style.display = 'none';
+                    return; 
+                }
+                board2D[i].push(val);
+            }
+        }
+
+        const isValidSet = (arr) => {
+            const cleanNums = arr.filter(n => !isNaN(n) && n >= 1 && n <= 9);
+            return new Set(cleanNums).size === 9;
+        };
+
+        for (let i = 0; i < 9; i++) {
+            if (!isValidSet(board2D[i])) { alert('Ошибка в строке!'); return; }
+            let col = [];
+            for (let j = 0; j < 9; j++) col.push(board2D[j][i]);
+            if (!isValidSet(col)) { alert('Ошибка в столбце!'); return; }
+        }
+
+        for (let row = 0; row < 9; row += 3) {
+            for (let col = 0; col < 9; col += 3) {
+                let box = [];
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) box.push(board2D[row + i][col + j]);
+                }
+                if (!isValidSet(box)) { alert('Ошибка в блоке 3х3!'); return; }
+            }
+        }
+
+        const nextBtn = document.getElementById('next-level-btn');
+        nextBtn.innerText = `Start ${currentLevel + 1} Level`;
+        nextBtn.style.display = 'block';
+    }
+
+    function nextLevel() {
+        currentLevel++;
+        generateNewSudoku();
+    }
+</script>
+</body>
+</html>
